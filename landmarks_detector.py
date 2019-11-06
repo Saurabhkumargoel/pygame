@@ -27,11 +27,20 @@ class LandmarksDetector(Module):
             self.points = outputs
 
             p = lambda i: self[i]
-            self.left_eye = p(0)
-            self.right_eye = p(1)
-            self.nose_tip = p(2)
-            self.left_lip_corner = p(3)
-            self.right_lip_corner = p(4)
+            # print('p-----------', p(0))
+            # self.left_eye = p(0)
+            # self.right_eye = p(1)
+            # self.nose_tip = p(2)
+            # self.left_lip_corner = p(3)
+            # self.right_lip_corner = p(4)
+            self.one = p(12)
+            self.two = p(13)
+            self.three = p(14)
+            self.four = p(15)
+            self.five = p(16)
+            self.six = p(17)
+
+
         def __getitem__(self, idx):
             return self.points[idx]
 
@@ -47,10 +56,19 @@ class LandmarksDetector(Module):
         self.output_blob = next(iter(model.outputs))
         self.input_shape = model.inputs[self.input_blob].shape
 
-        assert np.array_equal([1, self.POINTS_NUMBER * 2, 1, 1],
+        print("self.input_shape-----------", self.input_shape)
+        print("self.outputs_shape-----------", model.outputs[self.output_blob].shape)
+
+        # assert np.array_equal([1, self.POINTS_NUMBER * 2, 1, 1],
+        #                       model.outputs[self.output_blob].shape), \
+        #     "Expected model output shape %s, but got %s" % \
+        #     ([1, self.POINTS_NUMBER * 2, 1, 1],
+        #      model.outputs[self.output_blob].shape)
+
+        assert np.array_equal([1, 70],
                               model.outputs[self.output_blob].shape), \
             "Expected model output shape %s, but got %s" % \
-            ([1, self.POINTS_NUMBER * 2, 1, 1],
+            ([1, 70],
              model.outputs[self.output_blob].shape)
 
     def preprocess(self, frame, rois):
@@ -69,6 +87,7 @@ class LandmarksDetector(Module):
 
     def get_landmarks(self):
         outputs = self.get_outputs()
-        results = [LandmarksDetector.Result(out[self.output_blob].reshape((-1, 2))) \
-                      for out in outputs]
+        results = [LandmarksDetector.Result(out[self.output_blob].reshape((-1, 2))) for out in outputs]
+
+        # print("results---", results)
         return results
