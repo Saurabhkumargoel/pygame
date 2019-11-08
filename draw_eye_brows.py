@@ -23,6 +23,8 @@ from argparse import ArgumentParser
 
 import cv2
 import numpy as np
+import pywavefront
+
 
 from openvino.inference_engine import IENetwork
 from ie_module import InferenceContext
@@ -189,6 +191,8 @@ class Visualizer:
         self.frame_num = 0
         self.frame_count = -1
         self.frame_timeout = 0 if args.timelapse else 1
+        self.read_eyebrow_mesh()
+        self.read_eyebrow_image()
 
     def update_fps(self):
         now = time.time()
@@ -216,6 +220,22 @@ class Visualizer:
                       tuple(roi.position), tuple(roi.position + roi.size),
                       (0, 220, 0), 2)
 
+    def read_eyebrow_image(self, image='images/eyebrows/e10.png'):
+
+        # self.eyebrow_image = cv2.imread(image)
+        self.eyebrow_image_left = cv2.flip( cv2.imread(image),1)
+        self.eyebrow_image_right = cv2.flip( self.eyebrow_image_left,1)
+
+        # conc = np.concatenate((self.eyebrow_image_left, self.eyebrow_image_right), axis=1)
+        # cv2.imshow('both--',conc)
+        # cv2.waitKey(0)
+
+
+    def read_eyebrow_mesh(self, obj_file='images/eyebrows/eyeBrowLeft.obj', create_materials=True):
+
+        self.meshes = pywavefront.Wavefront(obj_file, create_materials=create_materials )
+        print (self.meshes.vertices)
+
 
     def draw_detection_keypoints(self, frame, roi, landmarks):
         keypoints = [landmarks.one,
@@ -229,13 +249,13 @@ class Visualizer:
         for point in keypoints:
             print(point.astype(int))
             center = roi.position + roi.size * point
-            print("point------", point, roi.position, roi.size, center, center.astype(int), point.astype(int))
-            # print("center------", center)
+            print("point------", point, roi.position, roi.size, center, center.astype(int))
+            # center.astype(int) is [col,row]
 
-            ## It dwars dots on eyebrows
+            ## It dwars dots (circle) on eyebrows
             cv2.circle(frame, tuple(center.astype(int)), 2, (0, 255, 255), 2)
 
-            # testing 
+            # # testing 
             # start_point = (5, 5) 
             # end_point = (220, 220) 
             # cv2.rectangle(frame, start_point, end_point, (0, 255, 255), 2)
