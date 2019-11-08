@@ -196,18 +196,18 @@ class Visualizer:
         self.fps = 1.0 / self.frame_time
         self.frame_start_time = now
 
-    def draw_text_with_background(self, frame, text, origin,
-                                  font=cv2.FONT_HERSHEY_SIMPLEX, scale=1.0,
-                                  color=(0, 0, 0), thickness=1, bgcolor=(255, 255, 255)):
-        text_size, baseline = cv2.getTextSize(text, font, scale, thickness)
-        cv2.rectangle(frame,
-                      tuple((origin + (0, baseline)).astype(int)),
-                      tuple((origin + (text_size[0], -text_size[1])).astype(int)),
-                      bgcolor, cv2.FILLED)
-        cv2.putText(frame, text,
-                    tuple(origin.astype(int)),
-                    font, scale, color, thickness)
-        return text_size, baseline
+    # def draw_text_with_background(self, frame, text, origin,
+    #                               font=cv2.FONT_HERSHEY_SIMPLEX, scale=1.0,
+    #                               color=(0, 0, 0), thickness=1, bgcolor=(255, 255, 255)):
+    #     text_size, baseline = cv2.getTextSize(text, font, scale, thickness)
+    #     cv2.rectangle(frame,
+    #                   tuple((origin + (0, baseline)).astype(int)),
+    #                   tuple((origin + (text_size[0], -text_size[1])).astype(int)),
+    #                   bgcolor, cv2.FILLED)
+    #     cv2.putText(frame, text,
+    #                 tuple(origin.astype(int)),
+    #                 font, scale, color, thickness)
+    #     return text_size, baseline
 
     def draw_detection_roi(self, frame, roi, identity):
 
@@ -227,11 +227,18 @@ class Visualizer:
 
         print()
         for point in keypoints:
-            print("point------", point, roi.position, roi.size)
+            print(point.astype(int))
             center = roi.position + roi.size * point
+            print("point------", point, roi.position, roi.size, center, center.astype(int), point.astype(int))
             # print("center------", center)
 
+            ## It dwars dots on eyebrows
             cv2.circle(frame, tuple(center.astype(int)), 2, (0, 255, 255), 2)
+
+            # testing 
+            # start_point = (5, 5) 
+            # end_point = (220, 220) 
+            # cv2.rectangle(frame, start_point, end_point, (0, 255, 255), 2)
 
     def draw_detections(self, frame, detections):
         for roi, landmarks, identity in zip(*detections):
@@ -262,14 +269,25 @@ class Visualizer:
         self.input_stream = input_stream
         self.output_stream = output_stream
 
+        eyebrow_image = cv2.imread("images/eyebrows/e5.png")
+        print("**********"*1000)
+        _, frame = input_stream.read()
+        rows, cols, _ = frame.shape
+        eb2_mask = np.zeros((rows, cols), np.uint8)
+        eb2_mask.fill(0)
+
+
         while input_stream.isOpened():
             has_frame, frame = input_stream.read()
             if not has_frame:
                 break
 
+
             # if self.input_crop is not None:
             #     frame = Visualizer.center_crop(frame, self.input_crop)
 
+
+            # print("---------------------------------hello")
             detections = self.frame_processor.process(frame)
             # print("detections------------", detections)
 
