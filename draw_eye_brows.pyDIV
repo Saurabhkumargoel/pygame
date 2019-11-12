@@ -23,6 +23,8 @@ from argparse import ArgumentParser
 
 import cv2
 import numpy as np
+import pywavefront
+
 
 from openvino.inference_engine import IENetwork
 from ie_module import InferenceContext
@@ -189,133 +191,71 @@ class Visualizer:
         self.frame_num = 0
         self.frame_count = -1
         self.frame_timeout = 0 if args.timelapse else 1
-        self.eye_brow_right = cv2.imread("images/eyebrows/e10.png")
-        # self.eye_brow_right = self.eye_brow_right
-        # _, self.eye_brow_right = cv2.threshold(self.eye_brow_right, 250 , 0 , cv2.THRESH_BINARY)
-        self.eye_brow_left = cv2.flip(self.eye_brow_right,1)
-        
+        self.read_eyebrow_mesh()
+        self.read_eyebrow_image()
 
-    def fliped(self,frame):
-        return cv2.flip(frame,1)
-        
-    def get_distance(self,b,a):
-        return False
-
-    def get_angle(self,b,a):
-
-        c = np.array([a[0],b[1]])
-        ba = a - b
-        bc = c - b
-
-        cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
-        angle = np.degrees(np.arccos(cosine_angle))
-        angle = angle if b[1]>=a[1] else 360-angle
-        print(angle,'----------------------------------angle--')
-        #time.sleep(10)
-        return angle
-
-    def rotateImage(self,image, angle,frame='left'):
-        image_center = tuple(np.array(image.shape[1::-1]) / 2)
-        rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
-        result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
-        # cv2.imshow(frame,result)
-        # cv2.waitKey(100)
-        return result
-        
     def update_fps(self):
         now = time.time()
         self.frame_time = now - self.frame_start_time
         self.fps = 1.0 / self.frame_time
         self.frame_start_time = now
 
-    def draw_text_with_background(self, frame, text, origin,
-                                  font=cv2.FONT_HERSHEY_SIMPLEX, scale=1.0,
-                                  color=(0, 0, 0), thickness=1, bgcolor=(255, 255, 255)):
-        text_size, baseline = cv2.getTextSize(text, font, scale, thickness)
-        cv2.rectangle(frame,
-                      tuple((origin + (0, baseline)).astype(int)),
-                      tuple((origin + (text_size[0], -text_size[1])).astype(int)),
-                      bgcolor, cv2.FILLED)
-        cv2.putText(frame, text,
-                    tuple(origin.astype(int)),
-                    font, scale, color, thickness)
-        return text_size, baseline
 
-    def draw_detection_roi(self, frame, roi, identity):
+    # def draw_detection_roi(self, frame, roi, identity):
 
-        # Draw face ROI border
-        cv2.rectangle(frame,
-                      tuple(roi.position), tuple(roi.position + roi.size),
-                      (0, 220, 0), 2)
+    #     # Draw face ROI border
+    #     cv2.rectangle(frame,
+    #                   tuple(roi.position), tuple(roi.position + roi.size),
+    #                   (0, 220, 0), 2)
+
+    def read_eyebrow_image(self, image='images/eyebrows/e10.png'):
+
+        # self.eyebrow_image = cv2.imread(image)
+        self.eyebrow_image_left = cv2.flip( cv2.imread(image),1)
+        self.eyebrow_image_right = cv2.flip( self.eyebrow_image_left,1)
+
+        # conc = np.concatenate((self.eyebrow_image_left, self.eyebrow_image_right), axis=1)
+        # cv2.imshow('both--',conc)
+        # cv2.waitKey(0)
+
+
+    def read_eyebrow_mesh(self, obj_file='images/eyebrows/eyeBrowLeft.obj', create_materials=True):
+
+        self.meshes = pywavefront.Wavefront(obj_file, create_materials=create_materials )
+        print (self.meshes.vertices)
+
 
     def draw_detection_keypoints(self, frame, roi, landmarks):
         keypoints = [landmarks.one,
-                     #landmarks.two,
+                     landmarks.two,
                      landmarks.three,
                      landmarks.four,
-                     #landmarks.five,
+                     landmarks.five,
                      landmarks.six]
 
         print()
         for point in keypoints:
-            #print("point------", point, roi.position, roi.size)
+            print(point.astype(int))
             center = roi.position + roi.size * point
-            # print("center------", center)
-            # cv2.circle(frame, tuple(center.astype(int)), 2, (0, 255, 255), 2)
+            print("point------", point, roi.position, roi.size, center, center.astype(int))
+            # center.astype(int) is [col,row]
 
+            ## It dwars dots (circle) on eyebrows
+            cv2.circle(frame, tuple(center.astype(int)), 2, (0, 255, 255), 2)
 
-        # center point for each eye
-        center_r = roi.position + roi.size * landmarks.five
-        center_l = roi.position + roi.size * landmarks.two
-        #print('-----------------------------------------',center_r)
-        # height, width, channels = img.shape
-        
-
-        #manual resize image of eye
-        eye_brow_right = cv2.resize(self.eye_brow_right,(int(roi.size[1]/4),int(roi.size[0]/4)))
-        eye_brow_left = cv2.resize(self.eye_brow_left,(int(roi.size[1]/4),int(roi.size[0]/4)))
-
-        # auto resizing
-        # eye_brow_right = cv2.resize
-        # eye_brow_left = cv2.resize
-        # rotate images of eye brow
-        eye_brow_right = self.rotateImage(eye_brow_right,self.get_angle(landmarks.three,landmarks.six),frame="right")
-        eye_brow_left = self.rotateImage(eye_brow_left,self.get_angle(landmarks.one,landmarks.three))
-        
-        #eye_brow_left = cv2.cvtColor(eye_brow_left,cv2.COLOR_BGR2RGB)
-        
-        # height, width, channels = img.shape
-        height, width, channels_f = frame.shape
-        rows, cols, channels_r = eye_brow_right.shape
-        rows, cols, channels_l = eye_brow_left.shape
-
-        #eye_brow_left = cv2.resize(eye_brow_left, (width, height))
-        #frame = cv2.addWeighted(frame,0,eye_brow_left,1,0)
-
-
-        p2, p1 = int(center_r[0]-cols/2),int(center_r[1]-rows/3)#0, 250
-        frame_eb_r = cv2.addWeighted(frame[p1:p1+rows, p2:p2+cols],1,eye_brow_right,1,0)
-
-        #frame[250:250+rows, 0:0+cols ] = eye_brow_right
-        frame[p1:p1+rows, p2:p2+cols] = frame_eb_r
-
-        p2, p1 = int(center_l[0]-cols/2),int(center_l[1]-rows/3)#0, 250
-        frame_eb_r_l = cv2.addWeighted(frame[p1:p1+rows, p2:p2+cols],1,eye_brow_left,1,0)
-
-        #frame[250:250+rows, 0:0+cols ] = eye_brow_right
-        # cv2.circle(frame, (int(center_l[0]-cols/2),int(center_l[1]-rows/3)), 2, (0, 255, 255), 2)
-
-        frame[p1:p1+rows, p2:p2+cols] = frame_eb_r_l
-        #print('channels_f,channels_l,channels_r',channels_f,channels_l,channels_r)
-        # cv2.imshow('dsfdas',self.eye_brow_right)
+            # # testing 
+            # start_point = (5, 5) 
+            # end_point = (220, 220) 
+            # cv2.rectangle(frame, start_point, end_point, (0, 255, 255), 2)
 
     def draw_detections(self, frame, detections):
         for roi, landmarks, identity in zip(*detections):
             # self.draw_detection_roi(frame, roi, identity)
             self.draw_detection_keypoints(frame, roi, landmarks)
 
+
+
     def display_interactive_window(self, frame):
-        #frame = cv2.flip(frame,1)
         color = (255, 255, 255)
         font = cv2.FONT_HERSHEY_SIMPLEX
         text_scale = 0.5
@@ -327,26 +267,6 @@ class Visualizer:
         cv2.putText(frame, text,
                     tuple(origin.astype(int)), font, text_scale, color, thickness)
 
-            # # height, width, channels = img.shape
-            # height, width, channels = frame.shape
-
-            # eye_brow_right = cv2.imread(r"D:\.openvino\fd\Eyebrows\e1 (6).png")
-            # eye_brow_left = cv2.imread(r"D:\.openvino\fd\Eyebrows\eye_brow_left.png")
-            # eye_brow_left = cv2.cvtColor(eye_brow_left,cv2.COLOR_BGR2RGB)
-            
-            # # height, width, channels = img.shape
-            # height, width, channels = frame.shape
-
-            # #eye_brow_left = cv2.resize(eye_brow_left, (width, height))
-            # #frame = cv2.addWeighted(frame,0,eye_brow_left,1,0)
-
-
-            # rows,cols,channels = eye_brow_right.shape
-
-            # eye_brow_right=cv2.addWeighted(frame[250:250+rows, 0:0+cols],1,eye_brow_right,1,0)
-
-            # frame[250:250+rows, 0:0+cols ] = eye_brow_right
-
         cv2.imshow('Face recognition demo', frame)
 
     def should_stop_display(self):
@@ -357,14 +277,18 @@ class Visualizer:
         self.input_stream = input_stream
         self.output_stream = output_stream
 
+        # eyebrow_image = cv2.imread("images/eyebrows/e5.png")
+        # print("**********"*1000)
+        _, frame = input_stream.read()
+        rows, cols, _ = frame.shape
+        eb2_mask = np.zeros((rows, cols), np.uint8)
+        eb2_mask.fill(0)
+
+
         while input_stream.isOpened():
             has_frame, frame = input_stream.read()
             if not has_frame:
                 break
-            frame = self.fliped(frame) # manually added by SG to make mirror like effect
-
-            # if self.input_crop is not None:
-            #     frame = Visualizer.center_crop(frame, self.input_crop)
 
             detections = self.frame_processor.process(frame)
             # print("detections------------", detections)

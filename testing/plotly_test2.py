@@ -54,12 +54,12 @@ mesh = go.Mesh3d(
             x=x,
             y=y,
             z=-z,
-            # vertexcolor=vertices[:, 3:], #the color codes must be triplets of floats  in [0,1]!!                      
+            vertexcolor=vertices[:, 3:], #the color codes must be triplets of floats  in [0,1]!!                      
             i=I,
             j=J,
             k=K,
-            name='test',
-            showscale=True)
+            name='',
+            showscale=False)
 
 
 layout = go.Layout(
@@ -70,18 +70,19 @@ layout = go.Layout(
                    scene=dict(xaxis=dict(visible=True),
                               yaxis=dict(visible=True),  
                               zaxis=dict(visible=True), 
-                              aspectratio=dict(x=1.5,
-                                               y=0.9,
-                                               z=0.5
-                                         ),
-                              camera=dict(eye=dict(x=3, y=5, z=0)),
+                              # aspectratio=dict(x=1.5,
+                              #                  y=0.9,
+                              #                  z=0.5
+                              #            ),
+                              camera=dict(eye=dict(x=1, y=1, z=1)),
                         ), 
                   paper_bgcolor='rgb(235,235,235)',
-                  margin=dict(t=175)) 
+                  # margin=dict(t=175)
+              ) 
 
 
-# fig = go.Figure(data=[mesh], layout=layout)
-fig = go.Figure(data=[mesh])
+fig = go.Figure(data=[mesh], layout=layout)
+# fig = go.Figure(data=[mesh])
 fig.show()
 print(dir(fig))
 img_byte = fig.to_image(format='png')
@@ -90,7 +91,7 @@ img_byte = fig.to_image(format='png')
 decoded = cv2.imdecode(np.frombuffer(img_byte, np.uint8), -1)
 print(decoded)
 
-# cv2.imwrite('decoded.png',decoded)
+cv2.imwrite('decoded.png',decoded)
 # cv2.imshow('decoded.png',decoded)
 # cv2.waitKey(0)
 

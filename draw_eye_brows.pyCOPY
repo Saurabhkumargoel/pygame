@@ -189,7 +189,7 @@ class Visualizer:
         self.frame_num = 0
         self.frame_count = -1
         self.frame_timeout = 0 if args.timelapse else 1
-        self.eye_brow_right = cv2.imread("images/eyebrows/e10.png")
+        self.eye_brow_right = cv2.imread("images/eyebrows/e9.png")
         # self.eye_brow_right = self.eye_brow_right
         # _, self.eye_brow_right = cv2.threshold(self.eye_brow_right, 250 , 0 , cv2.THRESH_BINARY)
         self.eye_brow_left = cv2.flip(self.eye_brow_right,1)
