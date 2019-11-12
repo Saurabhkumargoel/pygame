@@ -41,7 +41,8 @@ window = pyglet.window.Window(resizable=True)
 
 # [create a window and set up your OpenGl context]
 # meshes = pywavefront.Wavefront('../images/sofa/Sofa 4.obj',  create_materials=True )
-meshes = pywavefront.Wavefront('../images/eyebrows/eyeBrowLeft.obj',  create_materials=True )
+# meshes = pywavefront.Wavefront('../images/eyebrows/eyeBrowLeft.obj',  create_materials=True )
+meshes = pywavefront.Wavefront('../images/skeleton/skeleton.obj',  create_materials=True )
 
 # [inside your drawing loop]
 # visualization.draw(meshes)

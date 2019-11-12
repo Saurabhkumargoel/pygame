@@ -29,7 +29,8 @@ import pywavefront
 
 # Create absolute path from this module
 # file_abspath = os.path.join(os.path.dirname(__file__), '../images/eyebrows/Transphormator N121015.obj')
-file_abspath = os.path.join(os.path.dirname(__file__), '../images/sofa/Sofa 4.obj')
+# file_abspath = os.path.join(os.path.dirname(__file__), '../images/sofa/Sofa 4.obj')
+file_abspath = os.path.join(os.path.dirname(__file__), '../images/skeleton/skeleton.obj')
 # file_abspath = os.path.join(os.path.dirname(__file__), '../images/eyebrows/eyeBrowLeft.obj')
 
 rotation = 0
