@@ -1,13 +1,14 @@
 
 import numpy as np
 import plotly.graph_objects as go
-import sys
+import math
 import cv2
+
 
 
 class EyeBrows:
 
-    def __init__(self,obj_file):
+    def __init__(self,obj_file='images/eyebrows/eyeBrowLeft.obj'):
 
         self.obj_file = obj_file
         self.get_vertices()
@@ -54,7 +55,7 @@ class EyeBrows:
         self.mesh = go.Mesh3d(
             x=x,
             y=y,
-            z=-z,
+            z=z,
             vertexcolor=self.vertices[:, 3:], #the color codes must be triplets of floats  in [0,1]!!                      
             i=I,
             j=J,
@@ -70,55 +71,79 @@ class EyeBrows:
                        # font=dict(size=14, color='black'),
                        # width=900,
                        # height=800,
-                       scene=dict(xaxis=dict(visible=True),
-                                  yaxis=dict(visible=True),  
-                                  zaxis=dict(visible=True), 
+                       scene=dict(xaxis=dict(visible=False,
+                                            backgroundcolor="rgb(200, 200, 230)",
+                                             gridcolor="white",
+                                             showbackground=True,
+                                             zerolinecolor="white"),
+                                yaxis=dict(visible=False, 
+                                            backgroundcolor="rgb(230, 200,230)",
+                                            gridcolor="white",
+                                            showbackground=True,
+                                            zerolinecolor="white"),  
+                                zaxis=dict(visible=False,
+                                            backgroundcolor="rgb(230, 230,200)",
+                                            gridcolor="white",
+                                            showbackground=True,
+                                            zerolinecolor="white"), 
+                                xaxis_title='X AXIS TITLE',
+                                yaxis_title='Y AXIS TITLE',
+                                zaxis_title='Z AXIS TITLE',
+                                dragmode='orbit',
                                   # aspectratio=dict(x=1.5,
                                   #                  y=0.9,
                                   #                  z=0.5
                                   #            ),
-                                  camera=dict(eye=dict(x=2, y=1, z=1)),
+                                  camera=dict( 
+                                                eye=dict(x=0, y=0, z=-2.5),
+                                                # up=dict(x=0, y=0, z=math.sin(45)),
+                                                up=dict(x=0, y=1, z=0),
+                                                # center=dict(x=0, y=0, z=0),
+                                            ),
                             ), 
-                      paper_bgcolor='rgb(235,235,235)',
+                      paper_bgcolor='rgb(255,255,255)',
                       # margin=dict(t=175)
                   ) 
 
 
-    def update_layout(self,update_dict):
+    def update_layout(self,update_dict={}):
 
-        self.fig.layout.update(dict1=update_dict)
-        img_byte = fig.to_image(format='png')
 
-        img_decoded = cv2.imdecode(np.frombuffer(img_byte, np.uint8), -1)
-        return img_decoded
+        return self.img_decoded
+        # self.fig.layout.update(dict1=update_dict)
+        # img_byte = fig.to_image(format='png')
+
+        # img_decoded = cv2.imdecode(np.frombuffer(img_byte, np.uint8), -1)
+        # return img_decoded
 
 
     def get_image(self,angle=0):
 
         self.fig = go.Figure(data=[self.mesh], layout=self.layout)
 
-        self.fig.show()
+        # self.fig.show()
         # print(dir(fig))
         img_byte = self.fig.to_image(format='png')
 
         # image_byte to numpy array
         img_decoded = cv2.imdecode(np.frombuffer(img_byte, np.uint8), -1)
+        self.img_decoded = img_decoded[:,:,:3]
 
+        self.img_decoded[np.where((self.img_decoded==[255,255,255]).all(axis=2))] = [0,0,0];
 
-        img_decoded = img_decoded[:,:,:3]
-        # cv2.imshow('img_decoded',img_decoded)
+        # cv2.imshow('img_decoded',self.img_decoded)
         # cv2.waitKey(0)
 
-        # print(img_decoded)
+        print(self.img_decoded)
         # print(type(img_decoded))
 
-        return img_decoded
+        return self.img_decoded
 
 
 
 
 if __name__ == "__main__":
-    eb = EyeBrows('images/eyebrows/eyeBrowLeft.obj')
+    eb = EyeBrows()
     eb.get_image()
 
 

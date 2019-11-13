@@ -28,6 +28,8 @@ from openvino.inference_engine import IENetwork
 from ie_module import InferenceContext
 from landmarks_detector import LandmarksDetector
 from face_detector import FaceDetector
+from head_pose_detector import HeadPoseDetector
+from get_eyebrow import EyeBrows
 # from faces_database import FacesDatabase
 # from face_identifier import FaceIdentifier
 
@@ -53,6 +55,8 @@ def build_argparser():
                         help="Path to the Face Detection model XML file")
     models.add_argument('-m_lm', metavar="PATH", default="", required=True,
                         help="Path to the Facial Landmarks Regression model XML file")
+    models.add_argument('-m_hp', metavar="PATH", default="", required=True,
+                        help="Path to the Head Pose model XML file")
 
 
     infer = parser.add_argument_group('Inference options')
@@ -62,6 +66,9 @@ def build_argparser():
     infer.add_argument('-d_lm', default='CPU', choices=DEVICE_KINDS,
                        help="(optional) Target device for the " \
                        "Facial Landmarks Regression model (default: %(default)s)")
+    infer.add_argument('-d_hp', default='CPU', choices=DEVICE_KINDS,
+                       help="(optional) Target device for the " \
+                       "Head Pose model (default: %(default)s)")
     infer.add_argument('-d_reid', default='CPU', choices=DEVICE_KINDS,
                        help="(optional) Target device for the " \
                        "Face Reidentification model (default: %(default)s)")
@@ -94,7 +101,7 @@ class FrameProcessor:
     QUEUE_SIZE = 16
 
     def __init__(self, args):
-        used_devices = set([args.d_fd, args.d_lm, args.d_reid])
+        used_devices = set([args.d_fd, args.d_lm, args.d_hp, args.d_reid])
         self.context = InferenceContext()
         context = self.context
         context.load_plugins(used_devices, args.cpu_lib, args.gpu_lib)
@@ -105,6 +112,7 @@ class FrameProcessor:
         log.info("Loading models")
         face_detector_net = self.load_model(args.m_fd)
         landmarks_net = self.load_model(args.m_lm)
+        head_pose_net = self.load_model(args.m_hp)
         # face_reid_net = self.load_model(args.m_reid)
 
         self.face_detector = FaceDetector(face_detector_net,
@@ -112,8 +120,11 @@ class FrameProcessor:
                                           roi_scale_factor=args.exp_r_fd)
 
         self.landmarks_detector = LandmarksDetector(landmarks_net)
+        self.head_pose_detector = HeadPoseDetector(head_pose_net)
         self.face_detector.deploy(args.d_fd, context)
         self.landmarks_detector.deploy(args.d_lm, context,
+                                       queue_size=self.QUEUE_SIZE)
+        self.head_pose_detector.deploy(args.d_hp, context,
                                        queue_size=self.QUEUE_SIZE)
 
         log.info("Models are loaded")
@@ -148,6 +159,7 @@ class FrameProcessor:
 
         self.face_detector.clear()
         self.landmarks_detector.clear()
+        self.head_pose_detector.clear()
         # self.face_identifier.clear()
 
         self.face_detector.start_async(frame)
@@ -158,9 +170,11 @@ class FrameProcessor:
                     (self.QUEUE_SIZE, len(rois)))
             rois = rois[:self.QUEUE_SIZE]
         self.landmarks_detector.start_async(frame, rois)
+        self.head_pose_detector.start_async(frame, rois)
         landmarks = self.landmarks_detector.get_landmarks()
+        head_pose = self.head_pose_detector.get_head_pose()
 
-        outputs = [rois, landmarks, 'test']
+        outputs = [rois, landmarks, head_pose, 'test']
 
         return outputs
 
@@ -189,11 +203,16 @@ class Visualizer:
         self.frame_num = 0
         self.frame_count = -1
         self.frame_timeout = 0 if args.timelapse else 1
-        self.eye_brow_right = cv2.imread("images/eyebrows/e10.png")
+
+        self.eye_brow_right_obj = EyeBrows()
+        
+        self.eye_brow_right = self.eye_brow_right_obj.get_image() 
+
+        # self.eye_brow_right = cv2.imread(r"D:\.openvino\fd\Eyebrows\e1 (5)_.png")
         # self.eye_brow_right = self.eye_brow_right
         # _, self.eye_brow_right = cv2.threshold(self.eye_brow_right, 250 , 0 , cv2.THRESH_BINARY)
         self.eye_brow_left = cv2.flip(self.eye_brow_right,1)
-        
+        # self.eye_brow_left = cv2.cvtColor(self.eye_brow_left,cv2.COLOR_RGB2HSV)
 
     def fliped(self,frame):
         return cv2.flip(frame,1)
@@ -210,7 +229,7 @@ class Visualizer:
         cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
         angle = np.degrees(np.arccos(cosine_angle))
         angle = angle if b[1]>=a[1] else 360-angle
-        print(angle,'----------------------------------angle--')
+        # ####print(angle,'----------------------------------angle--')
         #time.sleep(10)
         return angle
 
@@ -248,7 +267,7 @@ class Visualizer:
                       tuple(roi.position), tuple(roi.position + roi.size),
                       (0, 220, 0), 2)
 
-    def draw_detection_keypoints(self, frame, roi, landmarks):
+    def draw_detection_keypoints(self, frame, roi, landmarks, head_pose):
         keypoints = [landmarks.one,
                      #landmarks.two,
                      landmarks.three,
@@ -256,21 +275,33 @@ class Visualizer:
                      #landmarks.five,
                      landmarks.six]
 
-        print()
+        print('.',end = '')
         for point in keypoints:
             #print("point------", point, roi.position, roi.size)
             center = roi.position + roi.size * point
             # print("center------", center)
-            # cv2.circle(frame, tuple(center.astype(int)), 2, (0, 255, 255), 2)
+            cv2.circle(frame, tuple(center.astype(int)), 2, (0, 255, 255), 2)
+
+    def draw_eye_brows(self, frame, roi, landmarks, head_pose):
+
+
+
+        # for obj in head_pose:
+        #     for j in obj:
+        #         print(j,end='')
+        print(head_pose[0][0],head_pose[1][0],head_pose[2][0])
+
+        # return
 
 
         # center point for each eye
         center_r = roi.position + roi.size * landmarks.five
         center_l = roi.position + roi.size * landmarks.two
-        #print('-----------------------------------------',center_r)
+        # print('-----------------------------------------','center_r')
         # height, width, channels = img.shape
         
-
+        
+        self.eye_brow_right = self.eye_brow_right_obj.update_layout()
         #manual resize image of eye
         eye_brow_right = cv2.resize(self.eye_brow_right,(int(roi.size[1]/4),int(roi.size[0]/4)))
         eye_brow_left = cv2.resize(self.eye_brow_left,(int(roi.size[1]/4),int(roi.size[0]/4)))
@@ -279,8 +310,9 @@ class Visualizer:
         # eye_brow_right = cv2.resize
         # eye_brow_left = cv2.resize
         # rotate images of eye brow
-        eye_brow_right = self.rotateImage(eye_brow_right,self.get_angle(landmarks.three,landmarks.six),frame="right")
-        eye_brow_left = self.rotateImage(eye_brow_left,self.get_angle(landmarks.one,landmarks.three))
+
+        # eye_brow_right = self.rotateImage(eye_brow_right,self.get_angle(landmarks.three,landmarks.six),frame="right")
+        # eye_brow_left = self.rotateImage(eye_brow_left,self.get_angle(landmarks.one,landmarks.three))
         
         #eye_brow_left = cv2.cvtColor(eye_brow_left,cv2.COLOR_BGR2RGB)
         
@@ -309,10 +341,35 @@ class Visualizer:
         #print('channels_f,channels_l,channels_r',channels_f,channels_l,channels_r)
         # cv2.imshow('dsfdas',self.eye_brow_right)
 
+    # def draw_detection_head_pose(self, frame, roi, head_pose):
+    #     # pass
+    #     keypoints = [landmarks.one,
+    #                  landmarks.two,
+    #                  landmarks.three,
+    #                  landmarks.four,
+    #                  landmarks.five,
+    #                  landmarks.six
+    #                  ]
+
+    #     for obj in head_pose:
+    #         for j in obj:
+    #             print(j,end='')
+    #     print()
+    #     for point in keypoints:
+    #         #print("point------", point, roi.position, roi.size)
+    #         center = roi.position + roi.size * point
+    #         # print("center------", center)
+    #         cv2.circle(frame, tuple(center.astype(int)), 2, (0, 255, 255), 2)
+
     def draw_detections(self, frame, detections):
-        for roi, landmarks, identity in zip(*detections):
+        for roi, landmarks, head_pose, identity in zip(*detections):
             # self.draw_detection_roi(frame, roi, identity)
-            self.draw_detection_keypoints(frame, roi, landmarks)
+            self.draw_detection_keypoints(frame, roi, landmarks, head_pose)
+            try:
+                self.draw_eye_brows(frame, roi, landmarks, head_pose)
+            except Exception as ex:
+                print(ex)
+            # self.draw_detection_head_pose(frame, roi, head_pose)
 
     def display_interactive_window(self, frame):
         #frame = cv2.flip(frame,1)
