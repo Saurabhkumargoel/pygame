@@ -83,19 +83,25 @@ class HeadPoseDetector(Module):
             self.enqueue(input)
 
     def get_head_pose(self):
-        outputs = self.get_outputs()
-        output = outputs[0]
-        #print('\n\n     ',[out[self.output_blob].shape for out in outputs],'\n\n')
-        #time.sleep(1000)
-        # results = [[HeadPoseDetector.Result(out[self.output_blob[1]]),HeadPoseDetector.Result(out[self.output_blob[0]])] for out in outputs]
 
-        results = [
-            [
-                HeadPoseDetector.Result(output[self.output_blob[0]]),
-                HeadPoseDetector.Result(output[self.output_blob[1]]),
-                HeadPoseDetector.Result(output[self.output_blob[2]])
+
+        try:
+            outputs = self.get_outputs()
+            output = outputs[0]
+            #print('\n\n     ',[out[self.output_blob].shape for out in outputs],'\n\n')
+            #time.sleep(1000)
+            # results = [[HeadPoseDetector.Result(out[self.output_blob[1]]),HeadPoseDetector.Result(out[self.output_blob[0]])] for out in outputs]
+
+            results = [
+                [
+                    HeadPoseDetector.Result(output[self.output_blob[0]]),
+                    HeadPoseDetector.Result(output[self.output_blob[1]]),
+                    HeadPoseDetector.Result(output[self.output_blob[2]])
+                ]
             ]
-        ]
+        except Exception as e:
+            # raise e
+            return []
 
 
         return results
