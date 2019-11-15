@@ -30,9 +30,6 @@ from ie_module import InferenceContext
 from landmarks_detector import LandmarksDetector
 from face_detector import FaceDetector
 from head_pose_detector import HeadPoseDetector
-from get_eyebrow import EyeBrows
-# from faces_database import FacesDatabase
-# from face_identifier import FaceIdentifier
 
 DEVICE_KINDS = ['CPU', 'GPU', 'FPGA', 'MYRIAD', 'HETERO', 'HDDL']
 
@@ -205,11 +202,15 @@ class Visualizer:
         self.frame_count = -1
         self.frame_timeout = 0 if args.timelapse else 1
 
-        self.eye_brow_obj = EyeBrows()
+        # self.eye_brow_obj = EyeBrows()
         
-        self.eye_brow_right = cv2.imread("images/eyebrows/e10.png")#, self.eye_brow_obj.get_image()
+        self.eye_brow_right = cv2.imread("images/eyebrows/e5.png")#, self.eye_brow_obj.get_image()
         self.eye_brow_left = cv2.flip(self.eye_brow_right,1)
         # self.frame_dict = {}
+
+        # print(type(self.eye_brow_right))
+        # print(self.eye_brow_right.shape)
+        # print(self.eye_brow_right)
 
 
         # self.eye_brow_right = cv2.imread(r"D:\.openvino\fd\Images\eyebrows\e1 (5)_.png")
@@ -350,7 +351,6 @@ class Visualizer:
 
         #eye_brow_left = cv2.resize(eye_brow_left, (width, height))
         #frame = cv2.addWeighted(frame,0,eye_brow_left,1,0)
-
 
         p2, p1 = int(center_r[0]-cols/2),int(center_r[1]-rows/2)#0, 250
         frame_eb_r = cv2.addWeighted(frame[p1:p1+rows, p2:p2+cols],1,eye_brow_right,1,0)
