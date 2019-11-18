@@ -11,10 +11,162 @@ from drawing import *
 import FaceRendering
 import utils_fswap
 
+from argparse import ArgumentParser
+import logging as log
+import sys
+import os.path as osp
+from openvino.inference_engine import IENetwork
+from ie_module import InferenceContext
 from landmarks_detector import LandmarksDetector
+from face_detector import FaceDetector
+from head_pose_detector import HeadPoseDetector
 
 
-def load_model(self, model_path):
+print ("Press T to draw the keypoints and the 3D model")
+print ("Press R to start recording to a video file")
+
+#you need to download shape_predictor_68_face_landmarks.dat from the link below and unpack it where the solution file is
+#http://sourceforge.net/projects/dclib/files/dlib/v18.10/shape_predictor_68_face_landmarks.dat.bz2
+
+#loading the keypoint detection model, the image and the 3D model
+predictor_path = "fswapfiles/shape_predictor_68_face_landmarks.dat"
+image_name = "fswapfiles/AK-2.jpeg"
+# image_name = "../data/AK-2.jpeg"
+#the smaller this value gets the faster the detection will work
+#if it is too small, the user's face might not be detected
+maxImageSizeForDetection = 320
+
+detector = dlib.get_frontal_face_detector()
+predictor = dlib.shape_predictor(predictor_path)
+mean3DShape, blendshapes, mesh, idxs3D, idxs2D = utils_fswap.load3DFaceModel("fswapfiles/candide.npz")
+
+# print("mean3DShape", mean3DShape)
+# print("blendshapes", blendshapes)
+# print("mesh",mesh, len(mesh))
+print("idxs3D", idxs3D, type(idxs3D))
+print("idxs2D", idxs2D, type(idxs2D))
+
+projectionModel = models.OrthographicProjectionBlendshapes(blendshapes.shape[0])
+
+modelParams = None
+lockedTranslation = False
+drawOverlay = False
+cap = cv2.VideoCapture(0)
+writer = None
+cameraImg = cap.read()[1]
+
+textureImg = cv2.imread(image_name)
+
+textureCoords = utils_fswap.getFaceTextureCoords(textureImg, mean3DShape, blendshapes, idxs2D, idxs3D, detector, predictor)
+
+# To get textureCoords(ie. landmarks of sample image )
+##########################################################
+                    
+DEVICE_KINDS = ['CPU', 'GPU', 'FPGA', 'MYRIAD', 'HETERO', 'HDDL']
+
+
+
+def build_argparser():
+    parser = ArgumentParser()
+
+    general = parser.add_argument_group('General')
+    general.add_argument('-i', '--input', metavar="PATH", default='0',
+                         help="(optional) Path to the input video " \
+                         "('0' for the camera, default)")
+    general.add_argument('-o', '--output', metavar="PATH", default="",
+                         help="(optional) Path to save the output video to")
+    general.add_argument('--no_show', action='store_true',
+                         help="(optional) Do not display output")
+    general.add_argument('-tl', '--timelapse', action='store_true',
+                         help="(optional) Auto-pause after each frame")
+
+    models = parser.add_argument_group('Models')
+    models.add_argument('-m_fd', metavar="PATH", default="", required=True,
+                        help="Path to the Face Detection model XML file")
+    models.add_argument('-m_lm', metavar="PATH", default="", required=True,
+                        help="Path to the Facial Landmarks Regression model XML file")
+    models.add_argument('-m_hp', metavar="PATH", default="", required=True,
+                        help="Path to the Head Pose model XML file")
+
+
+    infer = parser.add_argument_group('Inference options')
+    infer.add_argument('-d_fd', default='CPU', choices=DEVICE_KINDS,
+                       help="(optional) Target device for the " \
+                       "Face Detection model (default: %(default)s)")
+    infer.add_argument('-d_lm', default='CPU', choices=DEVICE_KINDS,
+                       help="(optional) Target device for the " \
+                       "Facial Landmarks Regression model (default: %(default)s)")
+    infer.add_argument('-d_hp', default='CPU', choices=DEVICE_KINDS,
+                       help="(optional) Target device for the " \
+                       "Head Pose model (default: %(default)s)")
+    infer.add_argument('-d_reid', default='CPU', choices=DEVICE_KINDS,
+                       help="(optional) Target device for the " \
+                       "Face Reidentification model (default: %(default)s)")
+    infer.add_argument('-l', '--cpu_lib', metavar="PATH", default="",
+                       help="(optional) For MKLDNN (CPU)-targeted custom layers, if any. " \
+                       "Path to a shared library with custom layers implementations")
+    infer.add_argument('-c', '--gpu_lib', metavar="PATH", default="",
+                       help="(optional) For clDNN (GPU)-targeted custom layers, if any. " \
+                       "Path to the XML file with descriptions of the kernels")
+    infer.add_argument('-v', '--verbose', action='store_true',
+                       help="(optional) Be more verbose")
+    infer.add_argument('-pc', '--perf_stats', action='store_true',
+                       help="(optional) Output detailed per-layer performance stats")
+    infer.add_argument('-t_fd', metavar='[0..1]', type=float, default=0.6,
+                       help="(optional) Probability threshold for face detections" \
+                       "(default: %(default)s)")
+    infer.add_argument('-t_id', metavar='[0..1]', type=float, default=0.3,
+                       help="(optional) Cosine distance threshold between two vectors " \
+                       "for face identification (default: %(default)s)")
+    infer.add_argument('-exp_r_fd', metavar='NUMBER', type=float, default=1.15,
+                       help="(optional) Scaling ratio for bboxes passed to face recognition " \
+                       "(default: %(default)s)")
+
+
+    return parser
+
+
+args = build_argparser().parse_args()
+log.basicConfig(format="[ %(levelname)s ] %(asctime)-15s %(message)s",
+            level=log.INFO if not args.verbose else log.DEBUG, stream=sys.stdout)
+
+print(args)
+
+
+class FrameProcessor:
+    QUEUE_SIZE = 16
+
+    def __init__(self, args):
+        used_devices = set([args.d_fd, args.d_lm, args.d_hp, args.d_reid])
+        self.context = InferenceContext()
+        context = self.context
+        context.load_plugins(used_devices, args.cpu_lib, args.gpu_lib)
+        for d in used_devices:
+            context.get_plugin(d).set_config({
+                "PERF_COUNT": "YES" if args.perf_stats else "NO"})
+
+        log.info("Loading models")
+        face_detector_net = self.load_model(args.m_fd)
+        landmarks_net = self.load_model(args.m_lm)
+        head_pose_net = self.load_model(args.m_hp)
+        # face_reid_net = self.load_model(args.m_reid)
+
+        self.face_detector = FaceDetector(face_detector_net,
+                                          confidence_threshold=args.t_fd,
+                                          roi_scale_factor=args.exp_r_fd)
+
+        self.landmarks_detector = LandmarksDetector(landmarks_net)
+        self.head_pose_detector = HeadPoseDetector(head_pose_net)
+        self.face_detector.deploy(args.d_fd, context)
+        self.landmarks_detector.deploy(args.d_lm, context,
+                                       queue_size=self.QUEUE_SIZE)
+        self.head_pose_detector.deploy(args.d_hp, context,
+                                       queue_size=self.QUEUE_SIZE)
+
+        log.info("Models are loaded")
+
+
+    def load_model(self, model_path):
         model_path = osp.abspath(model_path)
         model_description_path = model_path
         model_weights_path = osp.splitext(model_path)[0] + ".bin"
@@ -27,137 +179,144 @@ def load_model(self, model_path):
         log.info("Model is loaded")
         return model
 
+    def process(self, frame):
 
-used_devices = set([args.d_fd, args.d_lm, args.d_hp])
-self.context = InferenceContext()
-context = self.context
-context.load_plugins(used_devices, args.cpu_lib, args.gpu_lib)
-for d in used_devices:
-    context.get_plugin(d).set_config({
-        "PERF_COUNT": "YES" if args.perf_stats else "NO"})
+        # print("frame.shape--", frame.shape)
+        assert len(frame.shape) == 3, \
+            "Expected input frame in (H, W, C) format"
+        assert frame.shape[2] in [3, 4], \
+            "Expected BGR or BGRA input"
 
-log.info("Loading models")
-face_detector_net = self.load_model(args.m_fd)
-landmarks_net = self.load_model(args.m_lm)
-head_pose_net = self.load_model(args.m_hp)
-# face_reid_net = self.load_model(args.m_reid)
+        orig_image = frame.copy()
+        frame = frame.transpose((2, 0, 1)) # HWC to CHW
+        # print("frame.shape--", frame.shape)
+        frame = np.expand_dims(frame, axis=0)
+        # print("frame.shape--", frame.shape)
 
-self.face_detector = FaceDetector(face_detector_net,
-                                  confidence_threshold=args.t_fd,
-                                  roi_scale_factor=args.exp_r_fd)
+        self.face_detector.clear()
+        self.landmarks_detector.clear()
+        self.head_pose_detector.clear()
+        # self.face_identifier.clear()
 
-self.landmarks_detector = LandmarksDetector(landmarks_net)
-self.head_pose_detector = HeadPoseDetector(head_pose_net)
-self.face_detector.deploy(args.d_fd, context)
-self.landmarks_detector.deploy(args.d_lm, context,
-                               queue_size=self.QUEUE_SIZE)
-self.head_pose_detector.deploy(args.d_hp, context,
-                               queue_size=self.QUEUE_SIZE)
+        self.face_detector.start_async(frame)
+        rois = self.face_detector.get_roi_proposals(frame)
+        if self.QUEUE_SIZE < len(rois):
+            log.warning("Too many faces for processing." \
+                    " Will be processed only %s of %s." % \
+                    (self.QUEUE_SIZE, len(rois)))
+            rois = rois[:self.QUEUE_SIZE]
+        self.landmarks_detector.start_async(frame, rois)
+        self.head_pose_detector.start_async(frame, rois)
+        landmarks = self.landmarks_detector.get_landmarks()
+        head_pose = self.head_pose_detector.get_head_pose()
 
-print ("Press T to draw the keypoints and the 3D model")
-print ("Press R to start recording to a video file")
+        outputs = [rois, landmarks, head_pose]
 
-#you need to download shape_predictor_68_face_landmarks.dat from the link below and unpack it where the solution file is
-#http://sourceforge.net/projects/dclib/files/dlib/v18.10/shape_predictor_68_face_landmarks.dat.bz2
+        return outputs
 
-#loading the keypoint detection model, the image and the 3D model
-predictor_path = "../shape_predictor_68_face_landmarks.dat"
-
-image_name = "../data/jolie.jpg"
-# image_name = "../data/AK-2.jpeg"
-# image_name = "/home/divesh/OPENVINO/facedetection/images/eyebrows/e10.png"
-#the smaller this value gets the faster the detection will work
-#if it is too small, the user's face might not be detected
-maxImageSizeForDetection = 320
-
-detector = dlib.get_frontal_face_detector()
-predictor = dlib.shape_predictor(predictor_path)
-mean3DShape, blendshapes, mesh, idxs3D, idxs2D = utils_fswap.load3DFaceModel("../candide.npz")
-
-print(type(predictor))
+frame_processor = FrameProcessor(args)
 
 
-# print("mean3DShape", mean3DShape)
-# print("blendshapes", blendshapes)
-# print("mesh",mesh, len(mesh))
-# print("idxs3D", idxs3D)
-# print("idxs2D", idxs2D)
+###########################################################
 
-
-
-
-
-projectionModel = models.OrthographicProjectionBlendshapes(blendshapes.shape[0])
-
-modelParams = None
-lockedTranslation = False
-drawOverlay = False
-cap = cv2.VideoCapture(0)
-writer = None
-cameraImg = cap.read()[1]
-
-# textureImg = cv2.imread(image_name)
-textureImg = cameraImg #  tetsing
-# print(textureImg.shape)
-textureCoords = utils_fswap.getFaceTextureCoords(textureImg, mean3DShape, blendshapes, idxs2D, idxs3D, detector, predictor)
-
-def get_vertices(obj_file='/home/divesh/OPENVINO/facedetection/images/eyebrows/eyeBrowLeft.obj'):
-
-    vertices = []
-    faces = []
-
-    with open(obj_file) as objfile:
-        for line in objfile:
-            slist = line.split()
-            if slist:
-                if slist[0] == 'v':
-                    vertex = np.array(slist[1:], dtype=float)
-                    vertices.append(vertex)
-                elif slist[0] == 'f':
-                    face = []
-                    for k in range(1, len(slist)):
-                        face.append([int(s) for s in slist[k].replace('//','/').split('/')])
-                    if len(face) > 3: # triangulate the n-polyonal face, n>3
-                        faces.extend([[face[0][0]-1, face[k][0]-1, face[k+1][0]-1] for k in range(1, len(face)-1)])
-                    else:    
-                        faces.append([face[j][0]-1 for j in range(len(face))])
-                else: pass
-
-
-    mycolor =  np.tile(np.array([255,120,0]),(28,1)) # creating sample  color to vertex color x,y,z,r,g,b
-    # return np.array(vertices), np.array(faces) 
-    faces = np.array(faces) 
-    vertices = np.array(vertices)
-    # print (mycolor)
-    # vertices = np.append(vertices,mycolor,axis=1)
-
-    return vertices
-
-
-# textureCoords = get_vertices()
 print("textureCoords--", textureCoords)
+print("mesh--", len(mesh))
+
+
+# print(detections)
+
+def draw_detection_roi(frame, roi):
+
+        # Draw face ROI border
+        cv2.rectangle(frame,
+                      tuple(roi.position), tuple(roi.position + roi.size),
+                      (0, 220, 0), 1)
+
+def draw_detection_keypoints(frame, roi, landmarks, head_pose):
+
+    # print("landmarks--", landmarks.get_array())
+    keypoints = [landmarks.one,
+                 landmarks.two,
+                 landmarks.three,
+                 landmarks.four,
+                 landmarks.five,
+                 landmarks.six]
+
+    # print('.',end = '')
+    # for point in keypoints:
+    for point in landmarks.get_array():
+        #print("point------", point, roi.position, roi.size)
+        center = roi.position + roi.size * point
+        # print("center------", center)
+        cv2.circle(frame, tuple(center.astype(int)), 2, (0, 255, 255), 1)
+
+def draw_detections(frame, detections):
+    for roi, landmarks, head_pose in zip(*detections):
+        draw_detection_roi(frame, roi)
+        draw_detection_keypoints(frame, roi, landmarks, head_pose)
+        # try:
+        #     self.draw_eye_brows(frame, roi, landmarks, head_pose)
+        # except Exception as ex:
+        #     print(ex)
+        # #self.draw_detection_head_pose(frame, roi, head_pose)
+
+
+# textureImg = cv2.imread('images/eyebrows/e10.png')#textureImg  # right eyebrow 
+# textureCoords= ""# textureCoords   points 15,16,17
+# mesh = "" # mesh
 
 renderer = FaceRendering.FaceRenderer(cameraImg, textureImg, textureCoords, mesh)
 
+
 while True:
     cameraImg = cap.read()[1]
+
+    frame = cameraImg
+    detections = frame_processor.process(frame)
+    draw_detections(frame, detections)
+
     # print(cameraImg)
-    shapes2D = utils_fswap.getFaceKeypoints(cameraImg, detector, predictor, maxImageSizeForDetection)
+    shapes2Dorg = utils_fswap.getFaceKeypoints(frame, detector, predictor, maxImageSizeForDetection)
+    # print("shapes2D-----org", shapes2D)
 
-    print('shapes2D--', type(shapes2D), zip(shapes2D[0][0],shapes2D[0][1]))
-    print(shapes2D)
-    # for x,y in zip(shapes2D[0][0],shapes2D[0][1]):
-    #     print(x,y)
+    if shapes2Dorg is not None:
+        for shape2Dorg in shapes2Dorg:
+            print('shape2D--org',shape2Dorg[0], len(shape2Dorg[0]))
 
-    if shapes2D is not None:
-        for shape2D in shapes2D:
+    # print(detections[1][0].get_array().T)
+    if detections[1]:
+
+        for roi, landmarks, head_pose in zip(*detections):
+            landmarks = landmarks.get_array()
+            centers = np.array( list(map(lambda xy: roi.position + roi.size * [xy[0],xy[1]], landmarks)) )
+            # print(centers)
+            centers = centers.astype('int64')
+            shape2D = centers.T
+
+
+
+            # for i in range(len(landmarks)):
+            #     landmarks[i] = roi.position + roi.size * landmarks[i]
+            #     # landmarks[i][0],landmarks[i][1] = int(landmarks[i][0]),int(landmarks[i][1])
+
+            # # print(landmarks.T)
+            # shape2D = landmarks.T
+
+
+
+            print("shape2D-----22222",shape2D[0], len(shape2D[0]))
+            # continue
 
             # print(shape2D[0], len(shape2D[0]))   # list of [[x1,x2,x3.....xn],[y1,y2,y3.....yn]]
             #3D model parameter initialization
-            modelParams = projectionModel.getInitialParameters(mean3DShape[:, idxs3D], shape2D[:, idxs2D])
-
+            modelParams = projectionModel.getInitialParameters(mean3DShape[:, idxs3D], 
+                shape2D[:, idxs2D])
+            print("modelParams--------pass")
             #3D model parameter optimization
             modelParams = NonLinearLeastSquares.GaussNewton(modelParams, projectionModel.residual, projectionModel.jacobian, ([mean3DShape[:, idxs3D], blendshapes[:, :, idxs3D]], shape2D[:, idxs2D]), verbose=0)
+            print("modelParams--222------pass")
+
+            break
 
             #rendering the model to an image
             shape3D = utils_fswap.getShape3D(mean3DShape, blendshapes, modelParams)
@@ -169,7 +328,7 @@ while True:
 
             # apply rendered image on cameraImg
             cameraImg = ImageProcessing.blendImages(renderedImg, cameraImg, mask)
-       
+            
 
             #drawing of the mesh and keypoints
             if drawOverlay:
@@ -182,14 +341,14 @@ while True:
     cv2.imshow('image', cameraImg)
     key = cv2.waitKey(1)
 
-    if key == 27:
+    if key == 27 or key==ord('q'):
         break
     if key == ord('t'):
         drawOverlay = not drawOverlay
     if key == ord('r'):
         if writer is None:
             print ("Starting video writer")
-            writer = cv2.VideoWriter("../out.avi", cv2.cv.CV_FOURCC('X', 'V', 'I', 'D'), 25, (cameraImg.shape[1], cameraImg.shape[0]))
+            writer = cv2.VideoWriter("out.avi", cv2.VideoWriter.fourcc(*'MJPG'), 25, (cameraImg.shape[1], cameraImg.shape[0]))
 
             if writer.isOpened():
                 print ("Writer succesfully opened")

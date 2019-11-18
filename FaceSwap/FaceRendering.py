@@ -31,7 +31,6 @@ class FaceRenderer:
         self.w = targetImg.shape[1]
 
 
-        print("FaceRenderer----class")
         pygame.init()
         pygame.display.set_mode((self.w, self.h), DOUBLEBUF|OPENGL)
         setOrtho(self.w, self.h)
@@ -60,7 +59,6 @@ class FaceRenderer:
         glEnd()
 
     def render(self, vertices):
-        print("FaceRenderer----method")
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
         self.drawFace(vertices)
 

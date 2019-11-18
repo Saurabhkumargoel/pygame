@@ -1,8 +1,25 @@
 import cv2
 import numpy as np
 
+# font 
+font = cv2.FONT_HERSHEY_SIMPLEX 
+  
+# org 
+org = (50, 50) 
+  
+# fontScale 
+fontScale = 1
+   
+# Blue color in BGR 
+color = (255, 0, 0) 
+  
+# Line thickness of 2 px 
+thickness = 2
+
 def drawPoints(img, points, color=(0, 255, 0)):
-    for point in points:
+    for i,point in enumerate(points):
+        # cv2.putText(img, i, org, font,  
+        #            fontScale, color, thickness, cv2.LINE_AA) 
         cv2.circle(img, (int(point[0]), int(point[1])), 2, color)
 
 def drawCross(img, params, center=(100, 100), scale=30.0):

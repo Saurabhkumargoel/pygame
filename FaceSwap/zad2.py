@@ -29,18 +29,11 @@ detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor(predictor_path)
 mean3DShape, blendshapes, mesh, idxs3D, idxs2D = utils_fswap.load3DFaceModel("fswapfiles/candide.npz")
 
-print(type(predictor))
-
-
 # print("mean3DShape", mean3DShape)
 # print("blendshapes", blendshapes)
 # print("mesh",mesh, len(mesh))
 # print("idxs3D", idxs3D)
 # print("idxs2D", idxs2D)
-
-
-
-
 
 projectionModel = models.OrthographicProjectionBlendshapes(blendshapes.shape[0])
 
@@ -52,10 +45,10 @@ writer = None
 cameraImg = cap.read()[1]
 
 textureImg = cv2.imread(image_name)
-# print(textureImg.shape)
+
 textureCoords = utils_fswap.getFaceTextureCoords(textureImg, mean3DShape, blendshapes, idxs2D, idxs3D, detector, predictor)
 
-print("textureCoords--", textureCoords)
+# print("textureCoords--", textureCoords)
 renderer = FaceRendering.FaceRenderer(cameraImg, textureImg, textureCoords, mesh)
 
 while True:
@@ -63,6 +56,8 @@ while True:
     # print(cameraImg)
     shapes2D = utils_fswap.getFaceKeypoints(cameraImg, detector, predictor, maxImageSizeForDetection)
 
+
+    # print("shapes2D---",shapes2D)
     # print('shapes2D--', type(shapes2D), zip(shapes2D[0][0],shapes2D[0][1]))
     # for x,y in zip(shapes2D[0][0],shapes2D[0][1]):
     #     print(x,y)

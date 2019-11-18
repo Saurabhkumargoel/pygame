@@ -14,6 +14,8 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
+from math import hypot
+
 
 import logging as log
 import os.path as osp
@@ -204,9 +206,11 @@ class Visualizer:
 
         # self.eye_brow_obj = EyeBrows()
         
-        self.eye_brow_right = cv2.imread("images/eyebrows/e5.png")#, self.eye_brow_obj.get_image()
+        # self.eye_brow_right = cv2.imread("images/eyebrows/rubik_cube_PNG11.png")#, self.eye_brow_obj.get_image()
+        # self.eye_brow_right = cv2.imread("images/eyebrows/myeb.png")#, self.eye_brow_obj.get_image()
+        self.eye_brow_right = cv2.imread("images/eyebrows/e10.png")#, self.eye_brow_obj.get_image()
         self.eye_brow_left = cv2.flip(self.eye_brow_right,1)
-        # self.frame_dict = {}
+        # self.frame_dict = {}rubik_cube_PNG11.png
 
         # print(type(self.eye_brow_right))
         # print(self.eye_brow_right.shape)
@@ -282,10 +286,10 @@ class Visualizer:
 
     def draw_detection_keypoints(self, frame, roi, landmarks, head_pose):
         keypoints = [landmarks.one,
-                     #landmarks.two,
+                     landmarks.two,
                      landmarks.three,
                      landmarks.four,
-                     #landmarks.five,
+                     landmarks.five,
                      landmarks.six]
 
         print('.',end = '')
@@ -323,50 +327,117 @@ class Visualizer:
                                 #     self.frame_dict[f'{angle_up_down}_{angle_head_tilt}_{angle_left_right}'] = (self.eye_brow_left,self.eye_brow_right)
         #manual resize image of eye
         # for distance 
-        center_r1 = roi.size * landmarks.four
-        center_r2 = roi.size * landmarks.six
-        center_l1 = roi.size * landmarks.one
-        center_l2 = roi.size * landmarks.three
+        center_r1 = roi.position + roi.size * landmarks.four
+        center_r2 = roi.position + roi.size * landmarks.six
+        center_l1 = roi.position + roi.size * landmarks.one
+        center_l2 = roi.position + roi.size * landmarks.three
 
 
         # eye_brow_right = cv2.resize(self.eye_brow_right,self.get_distance(center_l1,center_l2))
         # eye_brow_left = cv2.resize(self.eye_brow_left,self.get_distance(center_r1,center_r2))
 
         # auto resizing
-        eye_brow_right = cv2.resize(self.eye_brow_right,(int(roi.size[1]/4),int(roi.size[0]/4)))
-        eye_brow_left = cv2.resize(self.eye_brow_left,(int(roi.size[1]/4),int(roi.size[0]/4)))
+        # eye_brow_right = cv2.resize(self.eye_brow_right,(int(roi.size[1]/4),int(roi.size[0]/12)))
+        # eye_brow_left = cv2.resize(self.eye_brow_left,(int(roi.size[1]/4),int(roi.size[0]/8)))
         # rotate images of eye brow
         # eye_brow_right = self.rotateImage(eye_brow_right,self.get_angle(landmarks.three,landmarks.six),frame="right")
         # eye_brow_left = self.rotateImage(eye_brow_left,self.get_angle(landmarks.one,landmarks.three))
 
-        eye_brow_right = self.rotateImage(eye_brow_right,-angle_head_tilt,frame="right")
-        eye_brow_left = self.rotateImage(eye_brow_left,-angle_head_tilt)
+        # eye_brow_right = self.rotateImage(eye_brow_right,-angle_head_tilt,frame="right")
+        # eye_brow_left = self.rotateImage(eye_brow_left,-angle_head_tilt)
         
         #eye_brow_left = cv2.cvtColor(eye_brow_left,cv2.COLOR_BGR2RGB)
         
         # height, width, channels = img.shape
         height, width, channels_f = frame.shape
-        rows, cols, channels_r = eye_brow_right.shape
-        rows, cols, channels_l = eye_brow_left.shape
+        # rows, cols, channels_r = eye_brow_right.shape
+        # rows, cols, channels_l = eye_brow_left.shape
 
-        #eye_brow_left = cv2.resize(eye_brow_left, (width, height))
-        #frame = cv2.addWeighted(frame,0,eye_brow_left,1,0)
 
-        p2, p1 = int(center_r[0]-cols/2),int(center_r[1]-rows/2)#0, 250
-        frame_eb_r = cv2.addWeighted(frame[p1:p1+rows, p2:p2+cols],1,eye_brow_right,1,0)
+        ############################
+        nose_mask = np.zeros((height, width), np.uint8)
+        nose_mask.fill(0)
 
-        #frame[250:250+rows, 0:0+cols ] = eye_brow_right
-        frame[p1:p1+rows, p2:p2+cols] = frame_eb_r
+        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        nose_width = int(hypot(center_l1[0] - center_l2[0],
+                           center_l1[1] - center_l2[1]) * 1.7)
+        nose_height = int(nose_width * 0.4)
 
-        p2, p1 = int(center_l[0]-cols/2),int(center_l[1]-rows/2)#0, 250
-        frame_eb_r_l = cv2.addWeighted(frame[p1:p1+rows, p2:p2+cols],1,eye_brow_left,1,0)
 
-        #frame[250:250+rows, 0:0+cols ] = eye_brow_right
-        # cv2.circle(frame, (int(center_l[0]-cols/2),int(center_l[1]-rows/3)), 2, (0, 255, 255), 2)
+        # New nose position
+        top_left = (int(center_l[0] - nose_width / 2),
+                              int(center_l[1] - nose_height / 2))
+        bottom_right = (int(center_l[0] + nose_width / 2),
+                       int(center_l[1] + nose_height / 2))
 
-        frame[p1:p1+rows, p2:p2+cols] = frame_eb_r_l
-        #print('channels_f,channels_l,channels_r',channels_f,channels_l,channels_r)
-        # cv2.imshow('dsfdas',self.eye_brow_right)
+
+        eye_brow_left = self.rotateImage(self.eye_brow_left,-angle_head_tilt)
+        # Adding the new nose
+        nose_pig = cv2.resize(eye_brow_left, (nose_width, nose_height))
+        nose_pig_gray = cv2.cvtColor(nose_pig, cv2.COLOR_BGR2GRAY)
+        _, nose_mask = cv2.threshold(nose_pig_gray, 25, 255, cv2.THRESH_BINARY_INV)
+        nose_area = frame[top_left[1]: top_left[1] + nose_height,
+                    top_left[0]: top_left[0] + nose_width]
+        nose_area_no_nose = cv2.bitwise_and(nose_area, nose_area, mask=nose_mask)
+        final_nose = cv2.add(nose_area_no_nose, nose_pig)
+        frame[top_left[1]: top_left[1] + nose_height,
+                    top_left[0]: top_left[0] + nose_width] = final_nose
+
+
+        ############################
+        nose_mask = np.zeros((height, width), np.uint8)
+        nose_mask.fill(0)
+
+        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        nose_width = int(hypot(center_r1[0] - center_r2[0],
+                           center_r1[1] - center_r2[1]) * 1.7)
+        nose_height = int(nose_width * 0.4)
+
+
+        # New nose position
+        top_left = (int(center_r[0] - nose_width / 2),
+                              int(center_r[1] - nose_height / 2))
+        bottom_right = (int(center_r[0] + nose_width / 2),
+                       int(center_r[1] + nose_height / 2))
+
+
+        # Adding the new nose
+        eye_brow_right = self.rotateImage(self.eye_brow_right,-angle_head_tilt)
+        nose_pig = cv2.resize(eye_brow_right, (nose_width, nose_height))
+        nose_pig_gray = cv2.cvtColor(nose_pig, cv2.COLOR_BGR2GRAY)
+        _, nose_mask = cv2.threshold(nose_pig_gray, 25, 255, cv2.THRESH_BINARY_INV)
+        nose_area = frame[top_left[1]: top_left[1] + nose_height,
+                    top_left[0]: top_left[0] + nose_width]
+        nose_area_no_nose = cv2.bitwise_and(nose_area, nose_area, mask=nose_mask)
+        final_nose = cv2.add(nose_area_no_nose, nose_pig)
+        frame[top_left[1]: top_left[1] + nose_height,
+                    top_left[0]: top_left[0] + nose_width] = final_nose
+
+
+
+
+        ##############################
+
+        # #eye_brow_left = cv2.resize(eye_brow_left, (width, height))
+        # #frame = cv2.addWeighted(frame,0,eye_brow_left,1,0)
+
+        # p2, p1 = int(center_r[0]-cols/2),int(center_r[1]-rows/2)#0, 250
+        # print(eye_brow_right>245)
+        # # eye_brow_right = eye_brow_right*(eye_brow_right<254)
+        # frame_eb_r = cv2.addWeighted(frame[p1:p1+rows, p2:p2+cols],1,eye_brow_right,1,0)
+
+        # #frame[250:250+rows, 0:0+cols ] = eye_brow_right
+        # frame[p1:p1+rows, p2:p2+cols] = frame_eb_r
+
+        # p2, p1 = int(center_l[0]-cols/2),int(center_l[1]-rows/2)#0, 250
+        # frame_eb_r_l = cv2.addWeighted(frame[p1:p1+rows, p2:p2+cols],1,eye_brow_left,1,0)
+
+        # #frame[250:250+rows, 0:0+cols ] = eye_brow_right
+        # # cv2.circle(frame, (int(center_l[0]-cols/2),int(center_l[1]-rows/3)), 2, (0, 255, 255), 2)
+
+        # frame[p1:p1+rows, p2:p2+cols] = frame_eb_r_l
+        # #print('channels_f,channels_l,channels_r',channels_f,channels_l,channels_r)
+        # # cv2.imshow('dsfdas',self.eye_brow_right)
 
     def get_head_pose_angles(self, frame, roi, head_pose):
 

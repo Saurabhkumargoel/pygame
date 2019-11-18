@@ -75,3 +75,5 @@ class LandmarksDetector(Module):
         results = [LandmarksDetector.Result(out[self.output_blob].reshape((-1, 2))) for out in outputs]
 
         return results
+
+
