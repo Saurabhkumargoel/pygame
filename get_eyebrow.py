@@ -17,7 +17,7 @@ class EyeBrows:
         self.apply_layout()
 
 
-
+        # print("******"*1000)
 
     def get_vertices(self):
 
@@ -42,7 +42,7 @@ class EyeBrows:
                     else: pass
     
     
-        mycolor =  np.tile(np.array([255,120,0]),(28,1)) # creating sample  color to vertex color x,y,z,r,g,b
+        mycolor =  np.tile(np.array([56,54,53]),(28,1)) # creating sample  color to vertex color x,y,z,r,g,b
         # return np.array(vertices), np.array(faces) 
         self.faces = np.array(faces) 
         self.vertices = np.array(vertices)
@@ -137,12 +137,13 @@ class EyeBrows:
         self.img_decoded[np.where((self.img_decoded==[255,255,255]).all(axis=2))] = [0,0,0];
 
         # For time being returning same image for left and right
-        return self.img_decoded, self.img_decoded
+        return self.img_decoded, cv2.flip(self.img_decoded,1)
 
 
 
     def get_image(self,angle={}):
 
+        print("get_image---")
         # create figure model
         self.fig = go.Figure(data=[self.mesh], layout=self.layout)
         # self.fig.show()
@@ -198,7 +199,7 @@ class EyeBrows:
         # print(self.img_decoded)
         # print(type(img_decoded))
 
-        return self.img_decoded, self.img_decoded
+        return self.img_decoded, cv2.flip(self.img_decoded,1)
 
 
 
