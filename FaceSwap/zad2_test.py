@@ -9,7 +9,7 @@ import ImageProcessing
 from drawing import *
 
 import FaceRendering
-import utils
+import utils_fswap
 
 from landmarks_detector import LandmarksDetector
 
@@ -72,7 +72,7 @@ maxImageSizeForDetection = 320
 
 detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor(predictor_path)
-mean3DShape, blendshapes, mesh, idxs3D, idxs2D = utils.load3DFaceModel("../candide.npz")
+mean3DShape, blendshapes, mesh, idxs3D, idxs2D = utils_fswap.load3DFaceModel("../candide.npz")
 
 print(type(predictor))
 
@@ -99,7 +99,7 @@ cameraImg = cap.read()[1]
 # textureImg = cv2.imread(image_name)
 textureImg = cameraImg #  tetsing
 # print(textureImg.shape)
-textureCoords = utils.getFaceTextureCoords(textureImg, mean3DShape, blendshapes, idxs2D, idxs3D, detector, predictor)
+textureCoords = utils_fswap.getFaceTextureCoords(textureImg, mean3DShape, blendshapes, idxs2D, idxs3D, detector, predictor)
 
 def get_vertices(obj_file='/home/divesh/OPENVINO/facedetection/images/eyebrows/eyeBrowLeft.obj'):
 
@@ -142,7 +142,7 @@ renderer = FaceRendering.FaceRenderer(cameraImg, textureImg, textureCoords, mesh
 while True:
     cameraImg = cap.read()[1]
     # print(cameraImg)
-    shapes2D = utils.getFaceKeypoints(cameraImg, detector, predictor, maxImageSizeForDetection)
+    shapes2D = utils_fswap.getFaceKeypoints(cameraImg, detector, predictor, maxImageSizeForDetection)
 
     print('shapes2D--', type(shapes2D), zip(shapes2D[0][0],shapes2D[0][1]))
     print(shapes2D)
@@ -160,7 +160,7 @@ while True:
             modelParams = NonLinearLeastSquares.GaussNewton(modelParams, projectionModel.residual, projectionModel.jacobian, ([mean3DShape[:, idxs3D], blendshapes[:, :, idxs3D]], shape2D[:, idxs2D]), verbose=0)
 
             #rendering the model to an image
-            shape3D = utils.getShape3D(mean3DShape, blendshapes, modelParams)
+            shape3D = utils_fswap.getShape3D(mean3DShape, blendshapes, modelParams)
             renderedImg = renderer.render(shape3D)
 
             #blending of the rendered face with the image

@@ -1,103 +1,45 @@
-import numpy as np
+"""
+ Copyright (c) 2018 Intel Corporation
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+"""
+
 import cv2
-import models
-from dlib import rectangle
-import NonLinearLeastSquares
+import numpy as np
+from numpy import clip
 
-def getNormal(triangle):
-    a = triangle[:, 0]
-    b = triangle[:, 1]
-    c = triangle[:, 2]
+def cut_roi(frame, roi):
+    p1 = roi.position.astype(int)
+    p1 = clip(p1, [0, 0], [frame.shape[-1], frame.shape[-2]])
+    p2 = (roi.position + roi.size).astype(int)
+    p2 = clip(p2, [0, 0], [frame.shape[-1], frame.shape[-2]])
+    return np.array(frame[:, :, p1[1]:p2[1], p1[0]:p2[0]])
 
-    axisX = b - a
-    axisX = axisX / np.linalg.norm(axisX)
-    axisY = c - a
-    axisY = axisY / np.linalg.norm(axisY)
-    axisZ = np.cross(axisX, axisY)
-    axisZ = axisZ / np.linalg.norm(axisZ)
+def cut_rois(frame, rois):
+    return [cut_roi(frame, roi) for roi in rois]
 
-    return axisZ
+def resize_input(frame, target_shape):
+    assert len(frame.shape) == len(target_shape), \
+        "Expected a frame with %s dimensions, but got %s" % \
+        (len(target_shape), len(frame.shape))
 
-def flipWinding(triangle):
-    return [triangle[1], triangle[0], triangle[2]]
+    assert frame.shape[0] == 1, "Only batch size 1 is supported"
+    n, c, h, w = target_shape
 
-def fixMeshWinding(mesh, vertices):
-    for i in range(mesh.shape[0]):
-        triangle = mesh[i]
-        normal = getNormal(vertices[:, triangle])
-        if normal[2] > 0:
-            mesh[i] = flipWinding(triangle)
+    input = frame[0]
+    if not np.array_equal(target_shape[-2:], frame.shape[-2:]):
+        input = input.transpose((1, 2, 0)) # to HWC
+        input = cv2.resize(input, (w, h))
+        input = input.transpose((2, 0, 1)) # to CHW
 
-    return mesh
-
-def getShape3D(mean3DShape, blendshapes, params):
-    #skalowanie
-    s = params[0]
-    #rotacja
-    r = params[1:4]
-    #przesuniecie (translacja)
-    t = params[4:6]
-    w = params[6:]
-
-    #macierz rotacji z wektora rotacji, wzor Rodriguesa
-    R = cv2.Rodrigues(r)[0]
-    shape3D = mean3DShape + np.sum(w[:, np.newaxis, np.newaxis] * blendshapes, axis=0)
-
-    shape3D = s * np.dot(R, shape3D)
-    shape3D[:2, :] = shape3D[:2, :] + t[:, np.newaxis]
-
-    return shape3D
-
-def getMask(renderedImg):
-    mask = np.zeros(renderedImg.shape[:2], dtype=np.uint8)
-
-def load3DFaceModel(filename):
-    faceModelFile = np.load(filename)
-    mean3DShape = faceModelFile["mean3DShape"]
-    mesh = faceModelFile["mesh"]
-    idxs3D = faceModelFile["idxs3D"]
-    idxs2D = faceModelFile["idxs2D"]
-    blendshapes = faceModelFile["blendshapes"]
-    mesh = fixMeshWinding(mesh, mean3DShape)
-
-    return mean3DShape, blendshapes, mesh, idxs3D, idxs2D
-
-def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=640):
-    imgScale = 1
-    scaledImg = img
-    if max(img.shape) > maxImgSizeForDetection:
-        imgScale = maxImgSizeForDetection / float(max(img.shape))
-        scaledImg = cv2.resize(img, (int(img.shape[1] * imgScale), int(img.shape[0] * imgScale)))
-
-
-    #detekcja twarzy
-    dets = detector(scaledImg, 1)
-
-    if len(dets) == 0:
-        return None
-
-    shapes2D = []
-    for det in dets:
-        faceRectangle = rectangle(int(det.left() / imgScale), int(det.top() / imgScale), int(det.right() / imgScale), int(det.bottom() / imgScale))
-
-        #detekcja punktow charakterystycznych twarzy
-        dlibShape = predictor(img, faceRectangle)
-        
-        shape2D = np.array([[p.x, p.y] for p in dlibShape.parts()])
-        #transpozycja, zeby ksztalt byl 2 x n a nie n x 2, pozniej ulatwia to obliczenia
-        shape2D = shape2D.T
-
-        shapes2D.append(shape2D)
-
-    return shapes2D
-    
-
-def getFaceTextureCoords(img, mean3DShape, blendshapes, idxs2D, idxs3D, detector, predictor):
-    projectionModel = models.OrthographicProjectionBlendshapes(blendshapes.shape[0])
-
-    keypoints = getFaceKeypoints(img, detector, predictor)[0]
-    modelParams = projectionModel.getInitialParameters(mean3DShape[:, idxs3D], keypoints[:, idxs2D])
-    modelParams = NonLinearLeastSquares.GaussNewton(modelParams, projectionModel.residual, projectionModel.jacobian, ([mean3DShape[:, idxs3D], blendshapes[:, :, idxs3D]], keypoints[:, idxs2D]), verbose=0)
-    textureCoords = projectionModel.fun([mean3DShape, blendshapes], modelParams)
-
-    return textureCoords
+    return input.reshape((n, c, h, w))

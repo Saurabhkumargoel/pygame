@@ -9,7 +9,7 @@ import ImageProcessing
 from drawing import *
 
 import FaceRendering
-import utils
+import utils_fswap
 
 print ("Press T to draw the keypoints and the 3D model")
 print ("Press R to start recording to a video file")
@@ -18,8 +18,8 @@ print ("Press R to start recording to a video file")
 #http://sourceforge.net/projects/dclib/files/dlib/v18.10/shape_predictor_68_face_landmarks.dat.bz2
 
 #loading the keypoint detection model, the image and the 3D model
-predictor_path = "../shape_predictor_68_face_landmarks.dat"
-image_name = "../data/jolie.jpg"
+predictor_path = "fswapfiles/shape_predictor_68_face_landmarks.dat"
+image_name = "fswapfiles/AK-2.jpeg"
 # image_name = "../data/AK-2.jpeg"
 #the smaller this value gets the faster the detection will work
 #if it is too small, the user's face might not be detected
@@ -27,7 +27,7 @@ maxImageSizeForDetection = 320
 
 detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor(predictor_path)
-mean3DShape, blendshapes, mesh, idxs3D, idxs2D = utils.load3DFaceModel("../candide.npz")
+mean3DShape, blendshapes, mesh, idxs3D, idxs2D = utils_fswap.load3DFaceModel("fswapfiles/candide.npz")
 
 print(type(predictor))
 
@@ -53,7 +53,7 @@ cameraImg = cap.read()[1]
 
 textureImg = cv2.imread(image_name)
 # print(textureImg.shape)
-textureCoords = utils.getFaceTextureCoords(textureImg, mean3DShape, blendshapes, idxs2D, idxs3D, detector, predictor)
+textureCoords = utils_fswap.getFaceTextureCoords(textureImg, mean3DShape, blendshapes, idxs2D, idxs3D, detector, predictor)
 
 print("textureCoords--", textureCoords)
 renderer = FaceRendering.FaceRenderer(cameraImg, textureImg, textureCoords, mesh)
@@ -61,7 +61,7 @@ renderer = FaceRendering.FaceRenderer(cameraImg, textureImg, textureCoords, mesh
 while True:
     cameraImg = cap.read()[1]
     # print(cameraImg)
-    shapes2D = utils.getFaceKeypoints(cameraImg, detector, predictor, maxImageSizeForDetection)
+    shapes2D = utils_fswap.getFaceKeypoints(cameraImg, detector, predictor, maxImageSizeForDetection)
 
     # print('shapes2D--', type(shapes2D), zip(shapes2D[0][0],shapes2D[0][1]))
     # for x,y in zip(shapes2D[0][0],shapes2D[0][1]):
@@ -78,7 +78,7 @@ while True:
             modelParams = NonLinearLeastSquares.GaussNewton(modelParams, projectionModel.residual, projectionModel.jacobian, ([mean3DShape[:, idxs3D], blendshapes[:, :, idxs3D]], shape2D[:, idxs2D]), verbose=0)
 
             #rendering the model to an image
-            shape3D = utils.getShape3D(mean3DShape, blendshapes, modelParams)
+            shape3D = utils_fswap.getShape3D(mean3DShape, blendshapes, modelParams)
             renderedImg = renderer.render(shape3D)
 
             #blending of the rendered face with the image

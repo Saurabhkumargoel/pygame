@@ -16,7 +16,7 @@
 
 import numpy as np
 
-from utils_intel import cut_rois, resize_input
+from utils import cut_rois, resize_input
 from ie_module import Module
 
 class LandmarksDetector(Module):

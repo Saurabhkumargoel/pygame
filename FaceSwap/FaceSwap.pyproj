@@ -40,7 +40,7 @@
     <Compile Include="FaceRendering.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="utils.py">
+    <Compile Include="utils_fswap.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="zad1.py" />
