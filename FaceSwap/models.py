@@ -110,7 +110,7 @@ class OrthographicProjectionBlendshapes(Model):
         return params
     
     def getInitialParameters(self, x, y):
-        print('prisadfsadsad')
+        # print('prisadfsadsad')
         mean3DShape = x.T
         shape2D = y.T
    

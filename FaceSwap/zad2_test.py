@@ -1,6 +1,7 @@
 import dlib
 import cv2
 import numpy as np
+import time as tm
 
 import models
 import NonLinearLeastSquares
@@ -30,7 +31,9 @@ print ("Press R to start recording to a video file")
 
 #loading the keypoint detection model, the image and the 3D model
 predictor_path = "fswapfiles/shape_predictor_68_face_landmarks.dat"
-image_name = "fswapfiles/AK-2.jpeg"
+# image_name = "fswapfiles/AK-2.jpeg"
+# image_name = "fswapfiles/mesh_brow01.jpg"
+image_name = "fswapfiles/face01_.jpg"
 # image_name = "../data/AK-2.jpeg"
 #the smaller this value gets the faster the detection will work
 #if it is too small, the user's face might not be detected
@@ -40,11 +43,14 @@ detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor(predictor_path)
 mean3DShape, blendshapes, mesh, idxs3D, idxs2D = utils_fswap.load3DFaceModel("fswapfiles/candide.npz")
 
+# print(np.shape(mean3DShape), np.shape(blendshapes), np.shape(mesh), np.shape(idxs3D), np.shape(idxs2D))
+# tm.sleep(10)
+
 # print("mean3DShape", mean3DShape)
 # print("blendshapes", blendshapes)
 # print("mesh",mesh, len(mesh))
-print("idxs3D", idxs3D, type(idxs3D))
-print("idxs2D", idxs2D, type(idxs2D))
+# print("idxs3D", idxs3D, type(idxs3D))
+# print("idxs2D", idxs2D, type(idxs2D))
 
 projectionModel = models.OrthographicProjectionBlendshapes(blendshapes.shape[0])
 
@@ -130,7 +136,7 @@ args = build_argparser().parse_args()
 log.basicConfig(format="[ %(levelname)s ] %(asctime)-15s %(message)s",
             level=log.INFO if not args.verbose else log.DEBUG, stream=sys.stdout)
 
-print(args)
+# print(args)
 
 
 class FrameProcessor:
@@ -141,6 +147,9 @@ class FrameProcessor:
         self.context = InferenceContext()
         context = self.context
         context.load_plugins(used_devices, args.cpu_lib, args.gpu_lib)
+        if args.output:
+            writer = True
+        writer = True
         for d in used_devices:
             context.get_plugin(d).set_config({
                 "PERF_COUNT": "YES" if args.perf_stats else "NO"})
@@ -187,7 +196,7 @@ class FrameProcessor:
         assert frame.shape[2] in [3, 4], \
             "Expected BGR or BGRA input"
 
-        orig_image = frame.copy()
+        # orig_image = frame.copy()
         frame = frame.transpose((2, 0, 1)) # HWC to CHW
         # print("frame.shape--", frame.shape)
         frame = np.expand_dims(frame, axis=0)
@@ -219,8 +228,8 @@ frame_processor = FrameProcessor(args)
 
 ###########################################################
 
-print("textureCoords--", textureCoords)
-print("mesh--", len(mesh))
+# print("textureCoords--", textureCoords)
+# print("mesh--", len(mesh))
 
 
 # print(detections)
@@ -273,15 +282,15 @@ while True:
 
     frame = cameraImg
     detections = frame_processor.process(frame)
-    draw_detections(frame, detections)
+    # draw_detections(frame, detections)
 
     # print(cameraImg)
     shapes2Dorg = utils_fswap.getFaceKeypoints(frame, detector, predictor, maxImageSizeForDetection)
     # print("shapes2D-----org", shapes2D)
 
-    if shapes2Dorg is not None:
-        for shape2Dorg in shapes2Dorg:
-            print('shape2D--org',shape2Dorg[0], len(shape2Dorg[0]))
+    # if shapes2Dorg is not None:
+    #     for shape2Dorg in shapes2Dorg:
+    #         print('shape2D--org',shape2Dorg, len(shape2Dorg[0]))
 
     # print(detections[1][0].get_array().T)
     if detections[1]:
@@ -291,7 +300,22 @@ while True:
             centers = np.array( list(map(lambda xy: roi.position + roi.size * [xy[0],xy[1]], landmarks)) )
             # print(centers)
             centers = centers.astype('int64')
-            shape2D = centers.T
+            c_t = centers
+            temp = np.vstack((
+                c_t[18:35] ,
+                c_t[12] , c_t[12] , c_t[13] , c_t[14] , c_t[14] ,
+                c_t[15] , c_t[15] , c_t[16] , c_t[17] , c_t[17] ,
+                c_t[14] , c_t[14] , c_t[14] , c_t[4] ,
+                c_t[6] , c_t[6] , c_t[5] , c_t[7] , c_t[7] ,
+                c_t[1] , c_t[1] , c_t[1] , c_t[0] , c_t[0] , c_t[0] ,
+                c_t[2] , c_t[2] , c_t[2] , c_t[3] , c_t[3] , c_t[3] ,
+                c_t[8] , c_t[8] , c_t[8] , c_t[8] , c_t[9] , c_t[9] , c_t[9] ,
+                c_t[11] , c_t[11] , c_t[11] , c_t[11] , c_t[11] ,
+                c_t[10] , c_t[10] , c_t[10] , c_t[10] , c_t[10] , c_t[10] , c_t[10]
+                ))#, axis=0)
+            # print(f"[--------{c_t}\n\n\n\n\n{temp}---------]")
+            # tm.sleep(10)
+            shape2D = temp.T
 
 
 
@@ -304,30 +328,60 @@ while True:
 
 
 
-            print("shape2D-----22222",shape2D[0], len(shape2D[0]))
+            # shape2D = next(iter(shapes2Dorg))
+            # print('shape2D--org',shapes2Dorg[0], len(shapes2Dorg[0][0]))
+            # print("shape2D-----22222",shape2D, len(shape2D[0]))
             # continue
 
             # print(shape2D[0], len(shape2D[0]))   # list of [[x1,x2,x3.....xn],[y1,y2,y3.....yn]]
             #3D model parameter initialization
-            modelParams = projectionModel.getInitialParameters(mean3DShape[:, idxs3D], 
-                shape2D[:, idxs2D])
-            print("modelParams--------pass")
+            modelParams = projectionModel.getInitialParameters(mean3DShape[:, idxs3D], shape2D[:, idxs2D])
+
+            # print(f'mean3DShape[:, idxs3D]\n{mean3DShape[:, idxs3D[:2]]},\n\n\n\n shape2D[:, idxs2D])\n{shape2D[:, idxs2D[:2]]}\n\n{modelParams}')
+            # print("modelParams--------pass")
             #3D model parameter optimization
             modelParams = NonLinearLeastSquares.GaussNewton(modelParams, projectionModel.residual, projectionModel.jacobian, ([mean3DShape[:, idxs3D], blendshapes[:, :, idxs3D]], shape2D[:, idxs2D]), verbose=0)
-            print("modelParams--222------pass")
+            # print(f"{modelParams}--222------pass")
 
-            break
+            # break
 
             #rendering the model to an image
+            # print(blendshapes.shape)
             shape3D = utils_fswap.getShape3D(mean3DShape, blendshapes, modelParams)
             renderedImg = renderer.render(shape3D)
+            # cv2.imshow('',renderedImg)
 
             #blending of the rendered face with the image
             mask = np.copy(renderedImg[:, :, 0])
             renderedImg = ImageProcessing.colorTransfer(cameraImg, renderedImg, mask)
 
             # apply rendered image on cameraImg
-            cameraImg = ImageProcessing.blendImages(renderedImg, cameraImg, mask)
+            # cv2.imshow('',cameraImg)
+            if True:
+                c1,r1 = tuple(map(int,roi.position))
+                c2,r2 = tuple(map(int,roi.position + roi.size))
+                t_ = r2+r1
+                r1 = int(t_*0.32)
+                r2 = int(t_*0.5)
+                # print('\n\n\n\n\n\n\n\n\n',r1,r2,'----', c1,c2,'\n\n\n\n\n\n\n\n\n')
+                # r1,r2,c1,c2 = [234,401,87,318]
+                # print('\n\n\n\n\n\n\n\n\n',r1,r2,'----', c1,c2,'\n\n\n\n\n\n\n\n\n')
+                cameraImg1 = ImageProcessing.blendImages(
+                    renderedImg[r1:r2,c1:c2,:], 
+                    cameraImg[r1:r2,c1:c2,:], 
+                    mask[r1:r2,c1:c2])
+                row,col,ch = cameraImg1.shape
+                print('--------------------------')
+                # cv2.imshow('fgds',cameraImg1)
+                # cv2.waitKey(0)
+
+                cameraImg[r1:row+r1,c1:col+c1] = cameraImg1
+            else:
+                cameraImg = ImageProcessing.blendImages(renderedImg, cameraImg, mask)
+
+            # print(f"renderedImg, {renderedImg.shape}, cameraImg, {cameraImg.shape}, mask, {mask.shape}")
+            # print(cameraImg.shape)
+            # cv2.imshow('',cameraImg)
             
 
             #drawing of the mesh and keypoints
@@ -335,13 +389,18 @@ while True:
                 drawPoints(cameraImg, shape2D.T)
                 drawProjectedShape(cameraImg, [mean3DShape, blendshapes], projectionModel, mesh, modelParams, lockedTranslation)
 
-    if writer is not None:
-        writer.write(cameraImg)
+    # if True:#writer is not None:
+    #     print('save ho rha hai')
+    #     f_w, f_h, _ = cameraImg.shape
+    #     # fourcc = cv2.CV_FOURCC(*'XVID')
+    #     writer = cv2.VideoWriter("outoutout.avi", cv2.VideoWriter_fourcc('M','J','P','G'), 10, (f_w,f_h))
+    #     writer.write(cameraImg)
 
     cv2.imshow('image', cameraImg)
     key = cv2.waitKey(1)
 
     if key == 27 or key==ord('q'):
+        writer.release()
         break
     if key == ord('t'):
         drawOverlay = not drawOverlay
